@@ -1,0 +1,251 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATC24 Tracker</title>
+<style>
+:root{--accent:#ef3038;--bg:#080a0d;--panel:#101318;--line:#292e36;--text:#edf0f5;--muted:#929ba9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,Arial,sans-serif}
+header{height:60px;border-bottom:1px solid var(--accent);display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#0b0d11;position:sticky;top:0;z-index:5}
+.brand{font-weight:900;letter-spacing:2px;font-size:17px}.brand span{color:var(--accent)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer;color:var(--text);background:#181c23;border:1px solid var(--line);border-radius:7px;padding:10px}
+button:hover,button.active{border-color:var(--accent);color:var(--accent)}
+nav{display:flex;gap:5px;overflow:auto;padding:10px;background:#0b0d11;border-bottom:1px solid var(--line)}
+nav button{white-space:nowrap}
+main{padding:12px;max-width:1500px;margin:auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+h2{font-size:15px;margin:0 0 12px;letter-spacing:.7px}
+h3{font-size:13px;margin:16px 0 8px;color:var(--muted)}
+.muted{color:var(--muted)}.accent{color:var(--accent)}
+.grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(270px,1fr);gap:12px}
+.stack{display:grid;gap:12px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:#0b0d11;border:1px solid var(--line);border-radius:8px;padding:12px}
+.stat strong{font-size:22px;display:block}
+input,select,textarea{width:100%;background:#090b0e;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:11px;margin:5px 0 10px}
+label{display:block;color:var(--muted);font-size:12px}
+.primary{background:var(--accent);color:white;border-color:var(--accent);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--muted);font-weight:500}
+th,td{padding:11px 7px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr[data-id]{cursor:pointer}tr[data-id]:hover{background:#20242b}
+.tablewrap{overflow:auto}
+.badge{color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:3px 6px;font-size:11px}
+#scope{height:390px;position:relative;overflow:hidden;background:radial-gradient(ellipse,#151a20,#090b0e 72%);border:1px solid #303741;border-radius:8px}
+#scope canvas{width:100%;height:100%;display:block}
+.scope-label{position:absolute;top:10px;left:12px;background:#0a0c10dd;padding:7px;border-radius:5px;font-size:11px}
+#selected{line-height:1.9;overflow-wrap:anywhere}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.hidden{display:none!important}
+.small{font-size:12px}
+.checkrow{display:flex;align-items:center;gap:8px;margin:10px 0;color:var(--muted)}
+.checkrow input{width:auto;margin:0}
+footer{padding:25px;text-align:center;color:var(--muted);font-size:11px}
+#notice{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#252a33;border:1px solid var(--line);padding:12px;border-radius:8px;display:none;z-index:10;max-width:90%;text-align:center}
+@media(max-width:800px){.grid{grid-template-columns:1fr}#scope{height:330px}.brand{font-size:14px}.stats strong{font-size:18px}main{padding:8px}.panel{padding:10px}}
+</style>
+</head>
+<body>
+<header>
+ <div class="brand"><span>✈</span> ATC24 <span>TRACKER</span></div>
+ <div class="muted small">COMMUNITY EDITION</div>
+</header>
+<nav id="nav">
+ <button data-view="ATC" class="active">ATC</button>
+ <button data-view="Radar">Radar</button>
+ <button data-view="Ground">Ground</button>
+ <button data-view="Pilot">Pilot</button>
+ <button data-view="Flight Plans">Flight Plans</button>
+ <button data-view="Lists">Lists</button>
+ <button data-view="Settings">Settings</button>
+</nav>
+<main>
+<section id="dashboard">
+ <div class="stats">
+  <div class="stat"><span class="muted small">AIRCRAFT</span><strong id="count">6</strong></div>
+  <div class="stat"><span class="muted small">FLIGHT PLANS</span><strong id="planCount">0</strong></div>
+  <div class="stat"><span class="muted small">DATA SOURCE</span><strong style="font-size:15px">DEMO</strong></div>
+ </div>
+ <div class="grid">
+  <div class="stack">
+   <section class="panel">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+     <h2 id="scopeTitle">ATC RADAR SCOPE</h2><span class="badge">SIMULATED</span>
+    </div>
+    <div id="scope"><canvas id="radar"></canvas><div class="scope-label" id="scopeLabel">DEMO AIRSPACE<br>Positions are illustrative</div></div>
+    <div class="toolbar">
+     <button id="zoomOut">−</button><button id="zoomIn">+</button>
+     <button id="labelsBtn" class="active">Labels ON</button>
+     <button id="routesBtn" class="active">Routes ON</button>
+    </div>
+    <p class="muted small">Demo radar only. Aircraft do not represent real ATC24 traffic.</p>
+   </section>
+   <section class="panel">
+    <h2>ACTIVE FLIGHTS</h2>
+    <input id="search" placeholder="Search callsign, destination, aircraft…">
+    <div class="tablewrap"><table>
+     <thead><tr><th>CALLSIGN</th><th>TYPE</th><th>ALT</th><th>SPD</th><th>DEST</th><th>STATUS</th></tr></thead>
+     <tbody id="flights"></tbody>
+    </table></div>
+   </section>
+  </div>
+  <div class="stack">
+   <section class="panel">
+    <h2>SELECTED AIRCRAFT</h2><div id="selected" class="muted">Select an aircraft on the radar or in the list.</div>
+   </section>
+   <section class="panel">
+    <h2>FLIGHT PLAN SUBMISSION</h2>
+    <form id="planForm">
+     <label>Callsign<input name="callsign" placeholder="e.g. BLZ101" required maxlength="16"></label>
+     <label>Aircraft<input name="aircraft" placeholder="e.g. A320" required maxlength="40"></label>
+     <label>Departure<input name="departure" placeholder="e.g. KLAX" required maxlength="12"></label>
+     <label>Destination<input name="destination" placeholder="e.g. KSFO" required maxlength="12"></label>
+     <label>Route / waypoints<textarea name="route" placeholder="Enter route details" required maxlength="500"></textarea></label>
+     <button class="primary" type="submit">Submit flight plan</button>
+    </form>
+    <p class="muted small">Saved only in this browser for now. Not sent to Discord or ATC24.</p>
+   </section>
+   <section class="panel">
+    <h2>RECENT FLIGHT PLANS</h2><div id="plans" class="small muted">No submitted plans yet.</div>
+   </section>
+  </div>
+ </div>
+</section>
+
+<section id="settings" class="panel hidden">
+ <h2>APPEARANCE SETTINGS</h2>
+ <label>Accent color<select id="accent">
+  <option value="#ef3038">Aviation Red</option>
+  <option value="#3985ff">Radar Blue</option>
+  <option value="#22bb88">Tower Green</option>
+  <option value="#f0ad36">Amber</option>
+  <option value="#b77bff">Violet</option>
+  <option value="#e9edf3">White</option>
+ </select></label>
+ <label>Interface theme<select id="theme">
+  <option value="dark">Black / Charcoal</option>
+  <option value="darker">Full Black</option>
+ </select></label>
+ <label>Display role<select id="role">
+  <option>Controller</option><option>Radar operator</option><option>Ground controller</option><option>Pilot</option>
+ </select></label>
+ <button id="saveSettings" class="primary">Apply settings</button>
+ <p class="muted small">These settings change the local display, not server permissions.</p>
+</section>
+
+<section id="other" class="panel hidden">
+ <h2 id="otherTitle">MODE</h2>
+ <p id="otherDescription" class="muted"></p>
+ <div id="otherContent"></div>
+ <button id="back" class="primary">Return to radar</button>
+</section>
+</main>
+<footer>ATC24 TRACKER • COMMUNITY PROJECT • NOT AFFILIATED WITH ATC24 OR ROBLOX</footer>
+<div id="notice"></div>
+<script>
+const demoFlights=[
+{id:1,call:"BLZ101",type:"A320",alt:32000,spd:430,dep:"KLAX",dest:"KSFO",status:"En route",x:.27,y:.30,heading:70},
+{id:2,call:"UAL245",type:"B738",alt:28000,spd:410,dep:"KSFO",dest:"KLAX",status:"En route",x:.68,y:.25,heading:230},
+{id:3,call:"DAL442",type:"B763",alt:35000,spd:455,dep:"KSEA",dest:"KLAX",status:"En route",x:.49,y:.17,heading:150},
+{id:4,call:"SWA882",type:"B737",alt:12000,spd:260,dep:"KLAX",dest:"KLAS",status:"Approach",x:.72,y:.63,heading:300},
+{id:5,call:"FDX220",type:"B77L",alt:8000,spd:210,dep:"KLAX",dest:"KPHX",status:"Descending",x:.35,y:.72,heading:40},
+{id:6,call:"ATC055",type:"C172",alt:4500,spd:115,dep:"KLAX",dest:"KLAX",status:"Training",x:.54,y:.49,heading:190}
+];
+let selected=1,showLabels=true,showRoutes=true,zoom=1,view="ATC";
+let userPlans=JSON.parse(localStorage.getItem("atcPlans")||"[]");
+let accent=localStorage.getItem("atcAccent")||"#ef3038";
+document.documentElement.style.setProperty("--accent",accent);
+const $=id=>document.getElementById(id);
+function notice(msg){$("notice").textContent=msg;$("notice").style.display="block";setTimeout(()=>$("notice").style.display="none",2600)}
+function allFlights(){return demoFlights}
+function drawRadar(){
+ const c=$("radar"),r=c.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+ if(!r.width||!r.height)return;
+ c.width=r.width*dpr;c.height=r.height*dpr;
+ const ctx=c.getContext("2d");ctx.scale(dpr,dpr);
+ const w=r.width,h=r.height,cx=w/2,cy=h/2,rad=Math.min(w,h)*.43*zoom;
+ ctx.fillStyle="#090c10";ctx.fillRect(0,0,w,h);
+ ctx.strokeStyle="#27313a";ctx.lineWidth=1;
+ for(let i=1;i<=4;i++){ctx.beginPath();ctx.arc(cx,cy,rad*i/4,0,Math.PI*2);ctx.stroke()}
+ for(let a=0;a<360;a+=30){let t=a*Math.PI/180;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(t)*rad,cy+Math.sin(t)*rad);ctx.stroke()}
+ ctx.fillStyle="#707c89";ctx.font="10px monospace";ctx.fillText("N",cx-3,cy-rad-7);ctx.fillText("W",cx-rad-12,cy+3);ctx.fillText("E",cx+rad+4,cy+3);
+ const flights=allFlights();
+ for(const f of flights){
+  let x=cx+(f.x-.5)*w*zoom,y=cy+(f.y-.5)*h*zoom;
+  if(x<8||x>w-8||y<8||y>h-8)continue;
+  if(showRoutes){ctx.strokeStyle=f.id===selected?getComputedStyle(document.documentElement).getPropertyValue("--accent"):"#49545f";ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(cx,cy);ctx.stroke();ctx.setLineDash([])}
+  ctx.save();ctx.translate(x,y);ctx.rotate(f.heading*Math.PI/180);
+  ctx.fillStyle=f.id===selected?getComputedStyle(document.documentElement).getPropertyValue("--accent"):"#e5e9ee";
+  ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(5,6);ctx.lineTo(0,3);ctx.lineTo(-5,6);ctx.closePath();ctx.fill();ctx.restore();
+  if(showLabels){ctx.fillStyle="#f1f3f6";ctx.font="11px monospace";ctx.fillText(f.call,x+9,y-5);ctx.fillStyle="#9aa5b2";ctx.fillText(f.alt+" ft",x+9,y+8)}
+ }
+}
+function renderFlights(){
+ const q=$("search").value.toLowerCase();
+ $("flights").innerHTML=allFlights().filter(f=>(f.call+f.type+f.dest+f.status).toLowerCase().includes(q)).map(f=>
+ `<tr data-id="${f.id}"><td><span class="accent">●</span> ${f.call}</td><td>${f.type}</td><td>${f.alt.toLocaleString()}</td><td>${f.spd}</td><td>${f.dest}</td><td>${f.status}</td></tr>`).join("");
+ document.querySelectorAll("#flights tr").forEach(tr=>tr.onclick=()=>selectFlight(+tr.dataset.id));
+ $("count").textContent=demoFlights.length;
+ $("planCount").textContent=userPlans.length;
+}
+function selectFlight(id){
+ selected=id;const f=allFlights().find(x=>x.id===id);if(!f)return;
+ $("selected").innerHTML=`<h2 class="accent">${f.call}</h2><p>${f.type} • ${f.status}</p><p>DEPARTURE<br><strong>${f.dep}</strong></p><p>DESTINATION<br><strong>${f.dest}</strong></p><p>ALTITUDE<br><strong>${f.alt.toLocaleString()} ft</strong></p><p>GROUND SPEED<br><strong>${f.spd} kt</strong></p><p>HEADING<br><strong>${f.heading}°</strong></p><button id="centerAircraft">Center aircraft</button>`;
+ $("centerAircraft").onclick=()=>notice("Demo aircraft selected. Live positioning is not connected.");
+ drawRadar();renderFlights();
+}
+function renderPlans(){
+ $("plans").innerHTML=userPlans.length?userPlans.slice().reverse().map(p=>`<div style="padding:9px 0;border-bottom:1px solid var(--line)"><strong class="accent">${escapeHtml(p.callsign)}</strong> ${escapeHtml(p.departure)} → ${escapeHtml(p.destination)}<br><span class="muted">${escapeHtml(p.aircraft)} • Submitted locally</span></div>`).join(""):"No submitted plans yet.";
+ $("planCount").textContent=userPlans.length;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+$("planForm").onsubmit=e=>{
+ e.preventDefault();const d=new FormData(e.target);
+ userPlans.push({callsign:d.get("callsign").trim(),aircraft:d.get("aircraft").trim(),departure:d.get("departure").trim().toUpperCase(),destination:d.get("destination").trim().toUpperCase(),route:d.get("route").trim()});
+ localStorage.setItem("atcPlans",JSON.stringify(userPlans));renderPlans();e.target.reset();notice("Flight plan saved in this browser.");showView("Flight Plans");
+};
+function showView(v){
+ view=v;document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===v));
+ $("dashboard").classList.toggle("hidden",v==="Settings"||!["ATC","Radar","Ground"].includes(v));
+ $("settings").classList.toggle("hidden",v!=="Settings");
+ $("other").classList.toggle("hidden",!["Pilot","Flight Plans","Lists"].includes(v));
+ if(v==="ATC"||v==="Radar"||v==="Ground"){
+  $("scopeTitle").textContent=v==="ATC"?"ATC RADAR SCOPE":v==="Radar"?"RADAR OVERVIEW":"GROUND MOVEMENT VIEW";
+  $("scopeLabel").innerHTML=v==="Ground"?"GROUND MODE • DEMO<br>Taxiways are not real":v==="Radar"?"RADAR OVERVIEW • DEMO<br>Illustrative positions":"DEMO AIRSPACE<br>Positions are illustrative";
+  drawRadar();
+ }else{
+  $("otherTitle").textContent=v.toUpperCase();
+  const descriptions={
+   "Pilot":"Pilot tools: inspect a demo flight and submit a flight plan. This page does not connect to an aircraft in ATC24.",
+   "Flight Plans":"Flight plans submitted in this browser. They are not yet shared with Discord or other users.",
+   "Lists":"Search the demo traffic list, or select a flight to inspect its callsign, destination, altitude, and speed."
+  };
+  $("otherDescription").textContent=descriptions[v]||"";
+  if(v==="Flight Plans"){$("otherContent").innerHTML="";renderPlans();$("otherContent").innerHTML=$("plans").innerHTML}
+  if(v==="Pilot")$("otherContent").innerHTML='<button class="primary" id="pilotPlan">Create flight plan</button>';
+  if(v==="Lists")$("otherContent").innerHTML='<input id="listSearch" placeholder="Search callsign or destination"><div class="tablewrap"><table><thead><tr><th>CALLSIGN</th><th>DEST</th><th>ALT</th><th>STATUS</th></tr></thead><tbody>'+demoFlights.map(f=>`<tr><td>${f.call}</td><td>${f.dest}</td><td>${f.alt}</td><td>${f.status}</td></tr>`).join("")+'</tbody></table></div>';
+  if(v==="Pilot")$("pilotPlan").onclick=()=>{showView("ATC");$("planForm").scrollIntoView({behavior:"smooth"})};
+ }
+}
+document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>showView(b.dataset.view));
+$("back").onclick=()=>showView("Radar");
+$("search").oninput=renderFlights;
+$("zoomIn").onclick=()=>{zoom=Math.min(1.8,zoom+.15);drawRadar()};
+$("zoomOut").onclick=()=>{zoom=Math.max(.6,zoom-.15);drawRadar()};
+$("labelsBtn").onclick=()=>{showLabels=!showLabels;$("labelsBtn").textContent="Labels "+(showLabels?"ON":"OFF");$("labelsBtn").classList.toggle("active",showLabels);drawRadar()};
+$("routesBtn").onclick=()=>{showRoutes=!showRoutes;$("routesBtn").textContent="Routes "+(showRoutes?"ON":"OFF");$("routesBtn").classList.toggle("active",showRoutes);drawRadar()};
+$("accent").value=accent;
+$("saveSettings").onclick=()=>{
+ accent=$("accent").value;localStorage.setItem("atcAccent",accent);document.documentElement.style.setProperty("--accent",accent);
+ document.body.style.background=$("theme").value==="darker"?"#000":"#080a0d";
+ notice("Appearance updated.");drawRadar();
+};
+window.addEventListener("resize",drawRadar);
+renderFlights();renderPlans();selectFlight(1);
+</script>
+</body>
+</html>
